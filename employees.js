@@ -39,9 +39,10 @@ router.put("/:id", requireAuth, (req, res) => {
   if (!target) return res.status(404).json({ error: "Employee not found." });
 
   const body = req.body || {};
-  const allowedForEmployee = ["phone", "address", "profile_picture"];
+  const addressFields = ["address_door_no", "address_street", "address_district", "address_state", "address_pincode"];
+  const allowedForEmployee = ["phone", "profile_picture", ...addressFields];
   const allowedForAdmin = [
-    "full_name", "job_title", "department", "phone", "address", "profile_picture", "role"
+    "full_name", "job_title", "department", "phone", "profile_picture", "role", ...addressFields
   ];
   const allowed = isAdmin ? allowedForAdmin : allowedForEmployee;
 
@@ -53,12 +54,25 @@ router.put("/:id", requireAuth, (req, res) => {
   if (updates.phone !== undefined && updates.phone !== "" && !/^[0-9+\-\s()]{6,20}$/.test(updates.phone)) {
     return res.status(400).json({ error: "Enter a valid phone number." });
   }
+  if (updates.address_pincode !== undefined && updates.address_pincode !== "" && !/^\d{6}$/.test(updates.address_pincode)) {
+    return res.status(400).json({ error: "Enter a valid 6-digit PIN code." });
+  }
+  for (const f of ["address_door_no", "address_street", "address_district", "address_state"]) {
+    if (updates[f] !== undefined && updates[f].length > 100) {
+      return res.status(400).json({ error: `${f.replace("address_", "").replace("_", " ")} must be under 100 characters.` });
+    }
+  }
   if (updates.role !== undefined && !["admin", "employee"].includes(updates.role)) {
     return res.status(400).json({ error: "Role must be Employee or HR." });
   }
   if (Object.keys(updates).length === 0) {
     return res.status(400).json({ error: "No valid fields provided to update." });
   }
+
+  // Keep the legacy `address` free-text column in sync so any older code reading it still works.
+  const merged = { ...target, ...updates };
+  updates.address = [merged.address_door_no, merged.address_street, merged.address_district, merged.address_state, merged.address_pincode]
+    .filter(Boolean).join(", ");
 
   const setClause = Object.keys(updates).map((k) => `${k} = @${k}`).join(", ");
   db.prepare(`UPDATE users SET ${setClause} WHERE id = @id`).run({ ...updates, id });
