@@ -1,5 +1,4 @@
-node_modules/
-db/dayflow.db
-db/dayflow.db-shm
-db/dayflow.db-wal
-.env
+node_modules
+.next
+.env.local
+.DS_Store
