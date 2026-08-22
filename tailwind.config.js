@@ -1,38 +1,34 @@
 /** @type {import('tailwindcss').Config} */
-export default {
-  content: ["./index.html", "./src/**/*.{js,jsx}"],
+module.exports = {
+  content: [
+    "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./components/**/*.{js,ts,jsx,tsx,mdx}",
+  ],
   theme: {
     extend: {
       colors: {
-        ink: "#1E2430",
-        surface: "#FFFFFF",
-        canvas: "#F5F7FA",
-        border: "#E3E7EE",
-        primary: {
-          DEFAULT: "#2B3A67",
-          light: "#3F5290",
-          dark: "#1C2647",
+        ink: "#1C2333",
+        slate: "#4B5468",
+        mist: "#F5F6FA",
+        line: "#E3E6EF",
+        flow: {
+          DEFAULT: "#3355FF",
+          dark: "#1F3ACC",
+          light: "#E8ECFF",
         },
-        accent: {
-          DEFAULT: "#3F9C6D",
-          light: "#E6F4EC",
-        },
-        warn: {
-          DEFAULT: "#D98E3B",
-          light: "#FBF0E1",
-        },
-        danger: {
-          DEFAULT: "#C7492F",
-          light: "#FBEAE6",
-        },
+        ok: "#1E9E6C",
+        warn: "#C98A1B",
+        bad: "#D8475C",
       },
       fontFamily: {
-        display: ["'Space Grotesk'", "sans-serif"],
-        body: ["'Inter'", "sans-serif"],
-        mono: ["'IBM Plex Mono'", "monospace"],
+        display: ["'Space Grotesk'", "system-ui", "sans-serif"],
+        body: ["'Inter'", "system-ui", "sans-serif"],
+      },
+      borderRadius: {
+        card: "14px",
       },
       boxShadow: {
-        card: "0 1px 2px rgba(30,36,48,0.06), 0 1px 12px rgba(30,36,48,0.04)",
+        card: "0 1px 2px rgba(28,35,51,0.04), 0 8px 24px rgba(28,35,51,0.06)",
       },
     },
   },

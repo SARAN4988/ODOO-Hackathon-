@@ -1,38 +1,49 @@
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
+import { updateSession } from "@/lib/supabase/middleware";
 
-// Refreshes the auth session on every request and returns both the response
-// and the resolved user so route protection logic can use it.
-export async function updateSession(request: NextRequest) {
-  let response = NextResponse.next({
-    request: { headers: request.headers },
-  });
+const PUBLIC_PATHS = ["/auth/login", "/auth/signup", "/auth/verify"];
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({ name, value, ...options });
-          response = NextResponse.next({ request: { headers: request.headers } });
-          response.cookies.set({ name, value, ...options });
-        },
-        remove(name: string, options: CookieOptions) {
-          request.cookies.set({ name, value: "", ...options });
-          response = NextResponse.next({ request: { headers: request.headers } });
-          response.cookies.set({ name, value: "", ...options });
-        },
-      },
+export async function middleware(request: NextRequest) {
+  const { response, user, supabase } = await updateSession(request);
+  const { pathname } = request.nextUrl;
+
+  const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+
+  // Not signed in and trying to reach a protected page -> send to login.
+  if (!user && !isPublic) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/login";
+    return NextResponse.redirect(url);
+  }
+
+  // Signed in and trying to reach an auth page -> send to dashboard.
+  if (user && isPublic) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/dashboard";
+    return NextResponse.redirect(url);
+  }
+
+  // Role gate: employees can't reach /dashboard/admin/*, admins get redirected
+  // away from the plain employee-only sub-pages of their own dashboard root.
+  if (user && pathname.startsWith("/dashboard/admin")) {
+    const { data: profile } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (profile?.role !== "admin") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/dashboard/employee";
+      return NextResponse.redirect(url);
     }
-  );
+  }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  return { response, user, supabase };
+  return response;
 }
+
+export const config = {
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
+};
