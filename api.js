@@ -10,7 +10,18 @@ api.interceptors.request.use((config) => {
 });
 
 export function apiErrorMessage(err) {
-  return err?.response?.data?.error || "Something went wrong. Please try again.";
+  // Server responded with an error (validation, auth, etc.) — show its message.
+  if (err?.response?.data?.error) {
+    return err.response.data.error;
+  }
+  // Request was sent but no response ever came back — backend is down, wrong
+  // port, or not started yet. This is the most common cause of a blank/odd
+  // error on the signup or login screen.
+  if (err?.request) {
+    return "Can't reach the server. Make sure the backend is running — open a terminal, run `cd backend` then `npm run dev`, and confirm it says \"Dayflow API running at http://localhost:5000\".";
+  }
+  // Something failed before the request could even be sent.
+  return `Something went wrong: ${err?.message || "unknown error"}. Please try again.`;
 }
 
 export default api;

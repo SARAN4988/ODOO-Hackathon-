@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import api from "../api";
 
 const employeeLinks = [
   { to: "/dashboard", label: "Dashboard", icon: "grid" },
@@ -35,6 +36,99 @@ function Icon({ name, className }) {
   );
 }
 
+function NotificationBell() {
+  const [items, setItems] = useState([]);
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef(null);
+
+  async function refresh() {
+    try {
+      const res = await api.get("/leave/notifications");
+      setItems(res.data.notifications);
+    } catch {
+      // silently ignore — notifications are non-critical
+    }
+  }
+
+  useEffect(() => {
+    refresh();
+    const interval = setInterval(refresh, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    function onClickOutside(e) {
+      if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  async function markRead(id) {
+    setItems((prev) => prev.filter((i) => i.id !== id));
+    try { await api.put("/leave/notifications/read", { id }); } catch { /* ignore */ }
+  }
+
+  async function markAllRead() {
+    const ids = items.map((i) => i.id);
+    setItems([]);
+    if (ids.length === 0) return;
+    try { await api.put("/leave/notifications/read", {}); } catch { /* ignore */ }
+  }
+
+  return (
+    <div className="relative" ref={boxRef}>
+      <button
+        className="relative p-2 rounded-lg hover:bg-white/10 text-white"
+        onClick={() => setOpen((v) => !v)}
+        aria-label="Notifications"
+      >
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9Z" />
+          <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+        </svg>
+        {items.length > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-danger text-white text-[10px] leading-4 text-center font-semibold">
+            {items.length}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto bg-white text-ink rounded-xl shadow-card border border-border z-30">
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
+            <p className="font-display font-semibold text-sm">Notifications</p>
+            {items.length > 0 && (
+              <button className="text-xs text-primary hover:underline" onClick={markAllRead}>Mark all read</button>
+            )}
+          </div>
+          {items.length === 0 ? (
+            <p className="text-sm text-ink/40 text-center py-6 px-4">You're all caught up.</p>
+          ) : (
+            <ul>
+              {items.map((n) => (
+                <li key={n.id} className="px-4 py-3 border-b border-border last:border-0">
+                  <p className="text-sm">
+                    Your <span className="font-medium">{n.leave_type}</span> leave request
+                    ({n.start_date} → {n.end_date}) was{" "}
+                    <span className={n.status === "Approved" ? "text-accent font-medium" : "text-danger font-medium"}>
+                      {n.status.toLowerCase()}
+                    </span> by HR.
+                  </p>
+                  {n.admin_comment && <p className="text-xs text-ink/50 mt-1">"{n.admin_comment}"</p>}
+                  <button className="text-xs text-primary hover:underline mt-1.5" onClick={() => markRead(n.id)}>
+                    Dismiss
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Layout({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -66,6 +160,7 @@ export default function Layout({ children }) {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {user?.role !== "admin" && <NotificationBell />}
           <div className="text-right hidden sm:block">
             <div className="text-sm font-medium leading-tight">{user?.full_name}</div>
             <div className="text-[11px] text-white/60 leading-tight capitalize">{user?.role === "admin" ? "HR Officer" : "Employee"}</div>

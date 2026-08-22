@@ -4,12 +4,24 @@ import { useAuth } from "../context/AuthContext.jsx";
 import Layout from "../components/Layout.jsx";
 import StatusBadge from "../components/StatusBadge.jsx";
 
+const SESSION_OPTIONS = [
+  { value: "Full Day", label: "Full day" },
+  { value: "First Half", label: "Half day — first half (morning)" },
+  { value: "Second Half", label: "Half day — second half (afternoon)" },
+];
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function EmployeeLeave() {
   const [rows, setRows] = useState([]);
-  const [form, setForm] = useState({ leave_type: "Paid", start_date: "", end_date: "", remarks: "" });
+  const [form, setForm] = useState({ leave_type: "Paid", start_date: "", end_date: "", session: "Full Day", remarks: "" });
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const min = todayStr();
+  const isSingleDay = form.start_date && form.start_date === form.end_date;
 
   async function refresh() {
     const res = await api.get("/leave/me");
@@ -20,6 +32,7 @@ function EmployeeLeave() {
   function validate() {
     const e = {};
     if (!form.start_date) e.start_date = "Start date is required.";
+    else if (form.start_date < min) e.start_date = "Start date cannot be in the past.";
     if (!form.end_date) e.end_date = "End date is required.";
     if (form.start_date && form.end_date && form.end_date < form.start_date) {
       e.end_date = "End date cannot be before start date.";
@@ -29,6 +42,13 @@ function EmployeeLeave() {
     return Object.keys(e).length === 0;
   }
 
+  function updateDates(field, value) {
+    const next = { ...form, [field]: value };
+    // Half-day time slots only make sense for a single-day request.
+    if (next.start_date !== next.end_date) next.session = "Full Day";
+    setForm(next);
+  }
+
   async function handleSubmit(ev) {
     ev.preventDefault();
     setServerError("");
@@ -36,7 +56,7 @@ function EmployeeLeave() {
     setSubmitting(true);
     try {
       await api.post("/leave", form);
-      setForm({ leave_type: "Paid", start_date: "", end_date: "", remarks: "" });
+      setForm({ leave_type: "Paid", start_date: "", end_date: "", session: "Full Day", remarks: "" });
       await refresh();
     } catch (err) {
       setServerError(apiErrorMessage(err));
@@ -69,16 +89,27 @@ function EmployeeLeave() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="label" htmlFor="start_date">Start date</label>
-            <input id="start_date" type="date" className="input" value={form.start_date}
-              onChange={(e) => setForm({ ...form, start_date: e.target.value })} />
+            <input id="start_date" type="date" className="input" value={form.start_date} min={min}
+              onChange={(e) => updateDates("start_date", e.target.value)} />
             {errors.start_date && <p className="field-error">{errors.start_date}</p>}
           </div>
           <div>
             <label className="label" htmlFor="end_date">End date</label>
-            <input id="end_date" type="date" className="input" value={form.end_date}
-              onChange={(e) => setForm({ ...form, end_date: e.target.value })} />
+            <input id="end_date" type="date" className="input" value={form.end_date} min={form.start_date || min}
+              onChange={(e) => updateDates("end_date", e.target.value)} />
             {errors.end_date && <p className="field-error">{errors.end_date}</p>}
           </div>
+        </div>
+
+        <div>
+          <label className="label" htmlFor="session">Time slot</label>
+          <select id="session" className="input" value={form.session} disabled={!isSingleDay}
+            onChange={(e) => setForm({ ...form, session: e.target.value })}>
+            {SESSION_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <p className="text-xs text-ink/40 mt-1">
+            {isSingleDay ? "Half-day slots are available for single-day requests." : "Half-day slots only apply when start and end date are the same."}
+          </p>
         </div>
 
         <div>
@@ -100,6 +131,7 @@ function EmployeeLeave() {
             <tr className="text-left text-ink/50 border-b border-border">
               <th className="py-2 pr-4 font-medium">Type</th>
               <th className="py-2 pr-4 font-medium">Dates</th>
+              <th className="py-2 pr-4 font-medium">Time slot</th>
               <th className="py-2 pr-4 font-medium">Status</th>
               <th className="py-2 pr-4 font-medium">HR comment</th>
             </tr>
@@ -109,12 +141,13 @@ function EmployeeLeave() {
               <tr key={l.id} className="border-b border-border last:border-0">
                 <td className="py-2 pr-4">{l.leave_type}</td>
                 <td className="py-2 pr-4 font-mono">{l.start_date} → {l.end_date}</td>
+                <td className="py-2 pr-4">{l.session || "Full Day"}</td>
                 <td className="py-2 pr-4"><StatusBadge status={l.status} /></td>
                 <td className="py-2 pr-4 text-ink/50">{l.admin_comment || "—"}</td>
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={4} className="py-6 text-center text-ink/40">No leave requests yet.</td></tr>
+              <tr><td colSpan={5} className="py-6 text-center text-ink/40">No leave requests yet.</td></tr>
             )}
           </tbody>
         </table>
@@ -167,7 +200,10 @@ function AdminLeave() {
           <div key={l.id} className="card flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
             <div>
               <p className="text-sm font-medium">{l.full_name} <span className="text-ink/40 font-mono text-xs">{l.employee_code}</span></p>
-              <p className="text-sm text-ink/60">{l.leave_type} · {l.start_date} → {l.end_date}</p>
+              <p className="text-sm text-ink/60">
+                {l.leave_type} · {l.start_date} → {l.end_date}
+                {l.session && l.session !== "Full Day" && <span className="text-ink/40"> · {l.session}</span>}
+              </p>
               {l.remarks && <p className="text-xs text-ink/40 mt-1">"{l.remarks}"</p>}
               <div className="mt-1"><StatusBadge status={l.status} /></div>
             </div>

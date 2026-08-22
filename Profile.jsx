@@ -4,10 +4,19 @@ import { useAuth } from "../context/AuthContext.jsx";
 import Layout from "../components/Layout.jsx";
 
 const PHONE_RE = /^[0-9+\-\s()]{6,20}$/;
+const PINCODE_RE = /^\d{6}$/;
 
 export default function Profile() {
   const { user, setUser } = useAuth();
-  const [form, setForm] = useState({ phone: "", address: "", profile_picture: "" });
+  const [form, setForm] = useState({
+    phone: "",
+    profile_picture: "",
+    address_door_no: "",
+    address_street: "",
+    address_district: "",
+    address_state: "",
+    address_pincode: "",
+  });
   const [errors, setErrors] = useState({});
   const [message, setMessage] = useState("");
   const [serverError, setServerError] = useState("");
@@ -17,8 +26,12 @@ export default function Profile() {
     if (user) {
       setForm({
         phone: user.phone || "",
-        address: user.address || "",
         profile_picture: user.profile_picture || "",
+        address_door_no: user.address_door_no || "",
+        address_street: user.address_street || "",
+        address_district: user.address_district || "",
+        address_state: user.address_state || "",
+        address_pincode: user.address_pincode || "",
       });
     }
   }, [user]);
@@ -26,7 +39,10 @@ export default function Profile() {
   function validate() {
     const e = {};
     if (form.phone && !PHONE_RE.test(form.phone)) e.phone = "Enter a valid phone number.";
-    if (form.address && form.address.length > 200) e.address = "Address must be under 200 characters.";
+    if (form.address_pincode && !PINCODE_RE.test(form.address_pincode)) e.address_pincode = "Enter a valid 6-digit PIN code.";
+    for (const f of ["address_door_no", "address_street", "address_district", "address_state"]) {
+      if (form[f] && form[f].length > 100) e[f] = "Must be under 100 characters.";
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -98,10 +114,39 @@ export default function Profile() {
           </div>
 
           <div>
-            <label className="label" htmlFor="address">Address</label>
-            <textarea id="address" className="input" rows={3} value={form.address}
-              onChange={(e) => setForm({ ...form, address: e.target.value })} />
-            {errors.address && <p className="field-error">{errors.address}</p>}
+            <p className="label mb-2">Address</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="label" htmlFor="address_door_no">Door no.</label>
+                <input id="address_door_no" className="input" value={form.address_door_no}
+                  onChange={(e) => setForm({ ...form, address_door_no: e.target.value })} />
+                {errors.address_door_no && <p className="field-error">{errors.address_door_no}</p>}
+              </div>
+              <div>
+                <label className="label" htmlFor="address_street">Street name</label>
+                <input id="address_street" className="input" value={form.address_street}
+                  onChange={(e) => setForm({ ...form, address_street: e.target.value })} />
+                {errors.address_street && <p className="field-error">{errors.address_street}</p>}
+              </div>
+              <div>
+                <label className="label" htmlFor="address_district">District</label>
+                <input id="address_district" className="input" value={form.address_district}
+                  onChange={(e) => setForm({ ...form, address_district: e.target.value })} />
+                {errors.address_district && <p className="field-error">{errors.address_district}</p>}
+              </div>
+              <div>
+                <label className="label" htmlFor="address_state">State</label>
+                <input id="address_state" className="input" value={form.address_state}
+                  onChange={(e) => setForm({ ...form, address_state: e.target.value })} />
+                {errors.address_state && <p className="field-error">{errors.address_state}</p>}
+              </div>
+              <div>
+                <label className="label" htmlFor="address_pincode">PIN code</label>
+                <input id="address_pincode" className="input" inputMode="numeric" maxLength={6} value={form.address_pincode}
+                  onChange={(e) => setForm({ ...form, address_pincode: e.target.value.replace(/\D/g, "") })} />
+                {errors.address_pincode && <p className="field-error">{errors.address_pincode}</p>}
+              </div>
+            </div>
           </div>
 
           <div>

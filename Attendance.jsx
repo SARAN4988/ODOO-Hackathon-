@@ -4,6 +4,21 @@ import { useAuth } from "../context/AuthContext.jsx";
 import Layout from "../components/Layout.jsx";
 import StatusBadge from "../components/StatusBadge.jsx";
 
+function SummaryCard({ label, value, tone }) {
+  const toneClass = {
+    accent: "text-accent",
+    danger: "text-danger",
+    warn: "text-warn",
+    primary: "text-primary",
+  }[tone] || "text-ink";
+  return (
+    <div className="card py-3 px-4">
+      <p className="text-xs text-ink/50">{label}</p>
+      <p className={`text-2xl font-display font-bold mt-0.5 ${toneClass}`}>{value}</p>
+    </div>
+  );
+}
+
 function EmployeeAttendance() {
   const [rows, setRows] = useState([]);
   const [today, setToday] = useState(null);
@@ -18,6 +33,17 @@ function EmployeeAttendance() {
   }
 
   useEffect(() => { refresh(); }, []);
+
+  const counts = rows.reduce(
+    (acc, r) => {
+      const key = r.status === "Half-day" ? "half" : r.status.toLowerCase();
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    },
+    { present: 0, absent: 0, leave: 0, half: 0 }
+  );
+  const marked = counts.present + counts.absent + counts.leave + counts.half;
+  const attendancePct = marked > 0 ? Math.round(((counts.present + counts.half * 0.5) / marked) * 100) : 0;
 
   async function checkIn() {
     setBusy(true); setError("");
@@ -47,7 +73,16 @@ function EmployeeAttendance() {
 
       {error && <div className="text-sm bg-danger-light text-danger rounded-lg px-3 py-2">{error}</div>}
 
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <SummaryCard label="Present" value={counts.present} tone="accent" />
+        <SummaryCard label="Absent" value={counts.absent} tone="danger" />
+        <SummaryCard label="On leave" value={counts.leave} tone="primary" />
+        <SummaryCard label="Half-day" value={counts.half} tone="warn" />
+        <SummaryCard label="Attendance %" value={`${attendancePct}%`} />
+      </div>
+
       <div className="card overflow-x-auto">
+        <p className="font-display font-semibold mb-3">Attendance history</p>
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-ink/50 border-b border-border">
