@@ -30,6 +30,11 @@ It adds the two extra tables the advanced features below need — `skills` and
 Radar, Predictive Absenteeism, Workforce Planning) is computed on the fly
 from tables you already have, so there's nothing else to migrate.
 
+Then run `supabase/migrations_003_realtime.sql`. It adds the `attendance`
+table to Supabase's `supabase_realtime` publication, which is what powers
+the Real-Time Workforce Monitoring board below (it respects the existing
+RLS policies — no new ones needed).
+
 ## 3. Configure environment variables
 
 ```bash
@@ -75,6 +80,30 @@ Visit `http://localhost:3000` — you'll land on the sign-up page.
 `lib/analytics.ts` holds every scoring heuristic (absenteeism risk, leave
 overuse, feedback-sentiment risk, tenure risk) as small, named, unit-testable
 functions — swap in a real model later without touching any page.
+
+## AI-native features (added on top of the advanced features)
+
+| Feature | Where it lives | Built from |
+|---|---|---|
+| Real-Time Workforce Monitoring | `app/dashboard/admin/monitoring` | `attendance` (today) + `leave_requests`, pushed live via Supabase Realtime — no polling |
+| AI Workforce Digital Twin | `app/dashboard/admin/digital-twin` | live per-department model (`lib/digitalTwin.ts`) from `users`, `attendance` (30d), `salary_structures`, and the risk score from `lib/analytics.ts`; scenario sliders recompute instantly client-side |
+| Skills Intelligence + Skill Graph | `app/dashboard/admin/skills` → **Skill Intelligence** tab | gap analysis, a bipartite skill/employee network graph, and mentor↔mentee matching (`lib/skillIntelligence.ts`), all from the existing `skills` table — no new schema |
+| Agentic HR Copilot | `app/dashboard/admin/copilot` (chat UI) + `app/api/copilot` (route handler) | a rule-based intent router (`lib/copilot.ts`) that reads live attendance/leave/skills/feedback data and answers directly — no external API key required. Swap in a real LLM later by replacing `answerQuery()` with an Anthropic API call inside the route handler; the request/response shape won't need to change. |
+
+`lib/digitalTwin.ts` and `lib/skillIntelligence.ts` follow the same
+philosophy as `lib/analytics.ts` — small, named, explainable functions, not
+a black box, so every number in the UI traces back to a function you can
+read in one screen.
+
+### Trying the Copilot
+
+The Copilot is deliberately not wired to an LLM (no API key needed to run
+the demo). It matches a question against a set of intents in
+`lib/copilot.ts` — each intent is a small function that reads the data
+already fetched for the request. Ask things like *"Who's on leave today?"*,
+*"What's the attendance rate for Engineering?"*, or *"Who's highest risk
+right now?"* — or use the suggestion chips in the chat UI. Adding a new
+capability is just adding one more entry to the `INTENTS` list.
 
 ## Suggested demo flow (for judges)
 
